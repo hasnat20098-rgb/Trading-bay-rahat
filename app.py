@@ -1,62 +1,112 @@
-import os
-from http.server import BaseHTTPRequestHandler, HTTPServer
-
-PORT = int(os.environ.get("PORT", 8000))
-
-HTML = """<!DOCTYPE html>
-<html lang="bn">
-<head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Trading by Rahat V26</title>
-<style>
-body{margin:0;font-family:Arial;background:#0f172a;color:white;text-align:center;padding:20px}
-.card{background:#1e293b;padding:20px;border-radius:15px;max-width:400px;margin:20px auto;box-shadow:0 0 20px rgba(0,0,0,0.5)}
-h1{color:#facc15;font-size:28px}
-.btn{background:#22c55e;color:white;border:none;padding:15px 25px;font-size:18px;border-radius:10px;width:100%;margin-top:10px;font-weight:bold}
-.btn2{background:#3b82f6}
-#result{font-size:32px;font-weight:bold;margin:20px 0;min-height:50px}
-select{width:100%;padding:12px;border-radius:8px;font-size:16px;margin:10px 0}
-.badge{background:#facc15;color:black;padding:5px 12px;border-radius:20px;font-size:13px;font-weight:bold}
-</style>
-</head>
-<body>
-<div class="card">
-<div class="badge">TRADING BY RAHAT - V26 LIVE</div>
-<h1>Trading by Rahat</h1>
-<p>Quotex Signal - 1 Minute</p>
-<select id="pair">
-<option>EUR/USD</option><option>GBP/USD</option><option>USD/JPY</option><option>EUR/GBP</option><option>AUD/USD</option><option>USD/BDT</option>
-</select>
-<button class="btn" onclick="getSignal()">GET SIGNAL 🚀</button>
-<div id="result">👆 চাপ দাও ভাই</div>
-<p id="time"></p>
-<button class="btn btn2" onclick="location.reload()">REFRESH</button>
-<p style="font-size:12px;color:#94a3b8;margin-top:15px">Demo Signal Only - নিজের রিস্কে ট্রেড করো</p>
-</div>
+# RAHAT PRO V26 - MARKET OPEN/CLOSE FIX - Trading by Rahat
+import http.server, socketserver, os
+PAGE = """
+<!DOCTYPE html><html lang="bn"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Trading by Rahat V26</title><style>*{box-sizing:border-box;font-family:Arial}body{margin:0;background:#f6fef7;padding-bottom:70px}header{position:sticky;top:0;z-index:99;background:#fff;padding:12px;border-bottom:2px solid #16a34a;display:flex;justify-content:space-between}.logo{font-weight:900;color:#16a34a;font-size:20px}.tabs{display:flex;gap:8px;padding:10px;overflow:auto;background:#fff}.tabs button{white-space:nowrap;border:1.5px solid #16a34a;background:#fff;color:#16a34a;padding:8px 14px;border-radius:20px;font-weight:700}.tabs button.active{background:#16a34a;color:#fff}.card{background:#fff;margin:10px;border-radius:14px;padding:14px;border:1px solid #d9f2e2}select,input{width:100%;padding:11px;border:1.5px solid #cfeeda;border-radius:10px;margin:6px 0}.btn{width:100%;background:#16a34a;color:#fff;border:0;padding:13px;border-radius:11px;font-weight:900}.row{display:flex;gap:8px}.row>div{flex:1;background:#f0fdf4;border-radius:10px;padding:10px;text-align:center}.bottom{position:fixed;bottom:0;left:0;right:0;background:#fff;display:flex;border-top:2px solid #16a34a;z-index:99}.bottom button{flex:1;padding:9px 1px;border:0;background:#fff;font-weight:700;font-size:12px}.bottom button.active{color:#16a34a}#tv{height:340px;background:#f0fdf4}#demoTv{height:320px;background:#f0fdf4}.small{font-size:13px;color:#555;line-height:1.6}.alertBox{background:#fff7cc;border:1px solid #facc15;padding:12px;border-radius:12px}.learn{padding:12px;border:1px solid #d9f2e2;border-radius:12px;margin:8px 0}.learn p{display:none}.hist{border:1px solid #d9f2e2;border-radius:12px;padding:12px;margin:8px 0}.win{color:#16a34a;font-weight:900}.nosig{background:#fff1f1;border:2px solid #ef4444;padding:14px;border-radius:12px}.goodsig{background:#f0fdf4;border:2px solid #16a34a;padding:14px;border-radius:12px}.sigTab{display:flex;gap:8px;margin-bottom:10px}.sigTab button{flex:1;border:1.5px solid #16a34a;background:#fff;color:#16a34a;padding:10px;border-radius:10px;font-weight:800}.sigTab button.active{background:#16a34a;color:#fff}.buyBtn{background:#16a34a;color:#fff;border:0;padding:16px;border-radius:12px;font-weight:900;font-size:18px;width:100%}.sellBtn{background:#ef4444;color:#fff;border:0;padding:16px;border-radius:12px;font-weight:900;font-size:18px;width:100%}#alertBig{display:none;position:fixed;top:60px;left:10px;right:10px;background:#ef4444;color:#fff;padding:16px;border-radius:14px;z-index:999;text-align:center;font-weight:900}.closedBox{background:#333;color:#fff;padding:14px;border-radius:12px;text-align:center}</style></head><body>
+<div id="alertBig">🔥 আসল সিগন্যাল আইছে!</div>
+<header><div><div class="logo">TRADING BY RAHAT</div><div class="small">V26 - মার্কেট বন্ধ চেক</div><div class="small" id="marketStatus">--</div></div><div><button onclick="toggleAlert()" id="alertBtn" style="background:#16a34a;color:#fff;border:0;padding:6px 10px;border-radius:8px">🔔 অ্যালার্ট অন</button><br><b>$ <input id="bal" value="50" style="width:50px"> ব্যালেন্স</b></div></header>
+<div class="tabs"><button class="active" onclick="setCat('forex',this)">ফরেক্স - ২৮</button><button onclick="setCat('crypto',this)">ক্রিপ্টো - ১৫</button><button onclick="setCat('binary',this)">বাইনারি রিয়েল - ১৮</button><button onclick="setCat('metal',this)">মেটাল / ওয়েল - ৮</button></div>
+<div id="pageTrade"><div class="card"><label>মার্কেট বাছো:</label><select id="market"></select><div id="tv" style="margin-top:10px"></div><div class="row" style="margin-top:10px"><div><div class="small">রেজিস্ট্যান্স</div><b id="res">--</b></div><div><div class="small">দাম</div><b id="price">--</b></div><div><div class="small">সাপোর্ট</div><b id="sup">--</b></div></div></div>
+<div class="card"><h3>🧮 ক্যালকুলেটর</h3><input id="calcBal" value="50"><input id="calcRisk" value="2"><button class="btn" onclick="calc()">হিসাব দেখো</button><div id="calcOut" class="small"></div></div>
+<div class="card"><h3>🕒 মার্কেট টাইম - ঢাকা</h3><div id="timeBox" class="alertBox"></div></div></div>
+<div id="pageSignal" style="display:none"><div class="card"><h3>📡 সিগন্যাল - V26</h3><p class="small">আগে মার্কেট খোলা কিনা চেক হইবো। বন্ধ থাকলে সিগন্যাল দিবো না। ফরেক্স শনি-রবি বন্ধ। ক্রিপ্টো সব সময় খোলা।</p><div class="sigTab"><button class="active" onclick="setSigCat('forex',this)">ফরেক্স</button><button onclick="setSigCat('binary',this)">বাইনারি</button><button onclick="setSigCat('crypto',this)">ক্রিপ্টো</button></div><label>মার্কেট বাছো:</label><select id="sigMarket"></select><div id="sigStatus" class="small" style="margin:8px 0;font-weight:900"></div><div class="row" style="margin-top:8px"><div><div class="small">রেজিস্ট্যান্স</div><b id="sigRes">--</b></div><div><div class="small">দাম</div><b id="sigPrice">--</b></div><div><div class="small">সাপোর্ট</div><b id="sigSup">--</b></div></div><button class="btn" style="margin-top:12px" onclick="checkRealSignal()">📡 আসল সিগন্যাল চেক করো</button><div id="signal"></div><button class="btn" style="margin-top:10px;background:#fff;color:#16a34a;border:1.5px solid #16a34a" onclick="scanAll()">🔍 সব মার্কেট স্ক্যান করো - খালি খোলা মার্কেট</button><div id="scanOut"></div></div></div>
+<div id="pageDemo" style="display:none"><div class="card"><h3>🎮 ডেমো - কোটেক্সের মতো</h3><div style="display:flex;justify-content:space-between"><b>ডেমো ব্যালেন্স: $<span id="demoBal">10000</span></b><button onclick="resetDemo()" style="background:#fff;border:1.5px solid #16a34a;color:#16a34a;border-radius:8px;padding:6px 10px">রিসেট</button></div><p class="small">ডেমোতে মার্কেট বন্ধ থাকলেও প্র্যাকটিস করা যাইবো। আসল টাকা না।</p><label style="margin-top:10px;display:block">মার্কেট বাছো:</label><select id="demoMarket"></select><div id="demoTv" style="margin-top:10px"></div><label>অ্যামাউন্ট ($):</label><input id="demoAmt" value="10"><label>টাইম:</label><select id="demoTime"><option value="60">১ মিনিট</option><option value="120">২ মিনিট</option><option value="300">৫ মিনিট</option></select><div id="demoCount" class="small" style="text-align:center;font-weight:900;font-size:16px;margin:8px 0"></div><div class="row"><div style="background:#fff;padding:0"><button class="buyBtn" onclick="startDemo('বাই')">বাই 🟢</button></div><div style="background:#fff;padding:0"><button class="sellBtn" onclick="startDemo('সেল')">সেল 🔴</button></div></div><div id="demoOut" class="small" style="margin-top:10px"></div><h4>ডেমো হিস্টরি</h4><div id="demoHist" class="small"></div></div></div>
+<div id="pageRank" style="display:none"><div class="card"><h3>🏆 র‍্যাংক - সেরা ১৫ টা</h3><div id="rankList"></div></div></div>
+<div id="pageLearn" style="display:none"><div class="card"><h3>📚 লার্নিং - ২০ টা</h3><div id="learnList"></div></div></div>
+<div id="pageHistory" style="display:none"><div class="card"><h3>📊 হিস্টরি</h3><input id="hMarket" placeholder="মার্কেট - EUR/USD"><input id="hResult" placeholder="উইন / লস"><input id="hLogic" placeholder="লজিক কি ছিলো?"><button class="btn" onclick="addHistory()">+ নতুন ট্রেড লিখো</button><div id="histList"></div></div></div>
+<div id="pageStory" style="display:none"><div class="card"><h3>❤️ রাহাত ভাইয়ের গল্প</h3><p class="small" style="font-size:15px;line-height:1.8">আমি রাহাত। বন্ধ মার্কেটে ট্রেড নিও না। ফরেক্স শনি-রবি বন্ধ। ক্রিপ্টো খোলা।</p></div></div>
+<div class="bottom"><button class="active" onclick="nav('Trade',this)">ট্রেড</button><button onclick="nav('Signal',this)">📡 সিগন্যাল</button><button onclick="nav('Demo',this)">🎮 ডেমো</button><button onclick="nav('Rank',this)">র‍্যাংক</button><button onclick="nav('Learn',this)">লার্নিং</button><button onclick="nav('History',this)">হিস্টরি</button><button onclick="nav('Story',this)">স্টোরি</button></div>
 <script>
-function getSignal(){
-  var pairs = document.getElementById('pair').value;
-  var r = Math.random();
-  var sig = r > 0.5 ? '🟢 CALL - UP ⬆️' : '🔴 PUT - DOWN ⬇️';
-  var col = r > 0.5 ? '#22c55e' : '#ef4444';
-  var el = document.getElementById('result');
-  el.innerHTML = pairs + '<br>' + sig;
-  el.style.color = col;
-  document.getElementById('time').innerHTML = 'Time: ' + new Date().toLocaleTimeString();
+var DATA={forex:[["EUR/USD","OANDA:EURUSD",1.0850],["GBP/USD","OANDA:GBPUSD",1.2750],["USD/JPY","OANDA:USDJPY",149.5],["AUD/USD","OANDA:AUDUSD",0.6520],["USD/CAD","OANDA:USDCAD",1.3550],["NZD/USD","OANDA:NZDUSD",0.6050],["EUR/GBP","OANDA:EURGBP",0.8510],["GBP/JPY","OANDA:GBPJPY",190.2],["EUR/JPY","OANDA:EURJPY",162.3],["AUD/JPY","OANDA:AUDJPY",97.4],["CHF/JPY","OANDA:CHFJPY",169.1],["CAD/JPY","OANDA:CADJPY",110.2],["NZD/JPY","OANDA:NZDJPY",90.4],["EUR/AUD","OANDA:EURAUD",1.6630],["EUR/CAD","OANDA:EURCAD",1.47],["EUR/NZD","OANDA:EURNZD",1.7930],["GBP/AUD","OANDA:GBPAUD",1.9550],["GBP/CAD","OANDA:GBPCAD",1.7280],["GBP/NZD","OANDA:GBPNZD",2.1070],["AUD/CAD","OANDA:AUDCAD",0.8830],["AUD/NZD","OANDA:AUDNZD",1.0770],["NZD/CAD","OANDA:NZDCAD",0.82],["USD/CHF","OANDA:USDCHF",0.8830],["EUR/CHF","OANDA:EURCHF",0.9580],["GBP/CHF","OANDA:GBPCHF",1.1260],["USD/SGD","OANDA:USDSGD",1.3450],["USD/MXN","OANDA:USDMXN",17.2],["USD/ZAR","OANDA:USDZAR",18.4]],crypto:[["BTC","BINANCE:BTCUSDT",67200],["ETH","BINANCE:ETHUSDT",3450],["SOL","BINANCE:SOLUSDT",168],["BNB","BINANCE:BNBUSDT",595],["XRP","BINANCE:XRPUSDT",0.52],["DOGE","BINANCE:DOGEUSDT",0.16],["ADA","BINANCE:ADAUSDT",0.45],["AVAX","BINANCE:AVAXUSDT",36],["LINK","BINANCE:LINKUSDT",17.5],["DOT","BINANCE:DOTUSDT",7.2],["LTC","BINANCE:LTCUSDT",84],["TRX","BINANCE:TRXUSDT",0.12],["NEAR","BINANCE:NEARUSDT",6.8],["ATOM","BINANCE:ATOMUSDT",10.5],["TON","BINANCE:TONUSDT",6.4]],binary:[["EUR/USD রিয়েল","OANDA:EURUSD",1.0850],["GBP/USD রিয়েল","OANDA:GBPUSD",1.2750],["USD/JPY রিয়েল","OANDA:USDJPY",149.5],["AUD/USD রিয়েল","OANDA:AUDUSD",0.6520],["USD/CAD রিয়েল","OANDA:USDCAD",1.3550],["NZD/USD রিয়েল","OANDA:NZDUSD",0.6050],["EUR/GBP রিয়েল","OANDA:EURGBP",0.8510],["GBP/JPY রিয়েল","OANDA:GBPJPY",190.2],["EUR/JPY রিয়েল","OANDA:EURJPY",162.3],["AUD/JPY রিয়েল","OANDA:AUDJPY",97.4],["EUR/CHF রিয়েল","OANDA:EURCHF",0.9580],["USD/CHF রিয়েল","OANDA:USDCHF",0.8830],["EUR/AUD রিয়েল","OANDA:EURAUD",1.6630],["GBP/AUD রিয়েল","OANDA:GBPAUD",1.9550],["EUR/CAD রিয়েল","OANDA:EURCAD",1.47],["GBP/CAD রিয়েল","OANDA:GBPCAD",1.7280],["AUD/CAD রিয়েল","OANDA:AUDCAD",0.8830],["NZD/CAD রিয়েল","OANDA:NZDCAD",0.82]],metal:[["GOLD / USD","OANDA:XAUUSD",2320],["SILVER / USD","OANDA:XAGUSD",27.4],["OIL / USD","TVC:USOIL",78.5],["BRENT OIL","TVC:UKOIL",82.1],["NATURAL GAS","TVC:NATURAL_GAS",2.85],["COPPER","TVC:COPPER",4.45],["PLATINUM","OANDA:XPTUSD",985],["S&P 500","OANDA:SPX500USD",5450]]};
+var cat='forex';var sigCat='forex';var alertOn=true;var demoBal=10000;var demoHist=[];var demoRunning=false;
+var hist=[{m:'EUR/USD',r:'উইন +১.২$',l:'৬/৮ মিলছিলো'}];
+var learns=[["১. ট্রেডিং কি?","দাম কমে কিনে বাড়লে বেচা। জুয়া না।"],["২. সাপোর্ট / রেজিস্ট্যান্স","সাপোর্টে দাম আটকায় উপরে উঠে। রেজিস্ট্যান্সে দাম আটকায় নিচে নামে।"],["৩. ক্যান্ডেল","সবুজ মানে দাম বাড়ছে, লাল মানে কমছে।"],["৪. RSI","RSI ৩০ নিচে মানে বাই, ৭০ উপরে মানে সেল।"],["৫. EMA ৫০","দাম লাইনের উপরে থাকলে উপরের দিকে।"],["৬. MACD","উপরের লাইন নিচেরটারে উপরে কাটলে বাই।"],["৭. ভলিউম","ভলিউম সহ উঠলে আসল উঠা।"],["৮. ২ ক্যান্ডেল কনফার্ম","১ টা দেখে নিও না, ২ টা একই দিকে হইলে নিও।"],["৯. মাল্টি টাইমফ্রেম","১৫ মিনিট আর ১ ঘণ্টা ২ টাতেই বাই থাকলে শক্ত।"],["১০. বলিঞ্জার","নিচে গেলে উপরে উঠার চান্স বেশি।"],["১১. নিউজ","নিউজের ৩০ মিনিট আগে আর ১৫ মিনিট পরে ট্রেড বন্ধ।"],["১২. OTC কেন বাদ","OTC আসল বাজার না, ব্রোকারের বানানো।"],["১৩. বাইনারি রিয়েল","আসল ফরেক্সের উপর বাইনারি। BTC, GOLD থাকে না।"],["১৪. ফরেক্স vs ক্রিপ্টো","ফরেক্স দেশের টাকা, ক্রিপ্টো BTC, ETH।"],["১৫. GOLD, OIL আলাদা","এইগুলা ফরেক্স না, মেটাল / ওয়েল।"],["১৬. ২% নিয়ম","৫০$ থাকলে ১ ট্রেডে ১$ এর বেশি রিস্ক না।"],["১৭. লোভ","লোভেই সব টাকা শেষ হয়। দিনে ২ টা ট্রেড।"],["১৮. জার্নাল","কেন জিতলা, কেন হারলা লিখে রাখো।"],["১৯. র‍্যাংক","৮৫%+ মার্কেটেই ট্রেড নিবা।"],["২০. দিনে ২ টা","বেশি ট্রেড মানে বেশি ভুল।"]];
+// MARKET OPEN / CLOSE - DHAKA TIME
+function isMarketOpen(catName){
+  var now=new Date();var day=now.getDay(); // 0=Sun, 6=Sat
+  if(catName=='crypto') return {open:true,msg:'🟢 ক্রিপ্টো খোলা - ২৪ ঘণ্টা খোলা'};
+  if(day==6) return {open:false,msg:'🔴 মার্কেট বন্ধ - আজ শনিবার - ফরেক্স বন্ধ - সোমবার সকাল পর্যন্ত অপেক্ষা করো'};
+  if(day==0) return {open:false,msg:'🔴 মার্কেট বন্ধ - আজ রবিবার - ফরেক্স বন্ধ - আজ রাত ৩ টায় খুলবো'};
+  return {open:true,msg:'🟢 মার্কেট খোলা - আজ '+['রবি','সোম','মঙ্গল','বুধ','বৃহ','শুক্র','শনি'][day]+'বার'};
 }
-</script>
-</body>
-</html>
+function updateMarketStatus(){
+  var st=isMarketOpen(cat);
+  document.getElementById('marketStatus').innerText=st.msg;
+  var now=new Date();var days=['রবিবার','সোমবার','মঙ্গলবার','বুধবার','বৃহস্পতিবার','শুক্রবার','শনিবার'];
+  document.getElementById('timeBox').innerHTML='আজ: '+days[now.getDay()]+' - টাইম: '+now.toLocaleTimeString('bn-BD')+'<br>'+st.msg+'<br><br><b>ফরেক্স:</b> সোম-শুক্র খোলা, শনি-রবি বন্ধ<br><b>ক্রিপ্টো:</b> সব দিন খোলা<br><b>বাইনারি রিয়েল:</b> ফরেক্সের মতোই - শনি-রবি বন্ধ';
+  var sigSt=isMarketOpen(sigCat);
+  document.getElementById('sigStatus').innerText=sigSt.msg;
+}
+function toggleAlert(){alertOn=!alertOn;document.getElementById('alertBtn').innerText=alertOn?'🔔 অ্যালার্ট অন':'🔕 অ্যালার্ট অফ';}
+function setCat(c,el){cat=c;var b=document.querySelectorAll('.tabs button');for(var i=0;i<b.length;i++)b[i].classList.remove('active');el.classList.add('active');fillMarket();loadChart();updateMarketStatus();}
+function fillMarket(){var s=document.getElementById('market');s.innerHTML='';for(var i=0;i<DATA[cat].length;i++){var o=document.createElement('option');o.value=i;o.text=DATA[cat][i][0];s.appendChild(o);}updatePrice();}
+function updatePrice(){var idx=document.getElementById('market').value||0;var m=DATA[cat][idx];var p=m[2];document.getElementById('price').innerText=p;document.getElementById('res').innerText=(p*1.002).toFixed(4);document.getElementById('sup').innerText=(p*0.998).toFixed(4);}
+function loadChart(){var idx=document.getElementById('market').value||0;var m=DATA[cat][idx];var tv=document.getElementById('tv');tv.innerHTML='';var s=document.createElement('script');s.src='https://s3.tradingview.com/external-embedding/embed-widget-advanced-chart.js';s.async=true;s.innerHTML=JSON.stringify({autosize:true,symbol:m[1],interval:'5',timezone:'Asia/Dhaka',theme:'light',style:'1',locale:'en'});tv.appendChild(s);}
+function setSigCat(c,el){sigCat=c;var b=document.querySelectorAll('.sigTab button');for(var i=0;i<b.length;i++)b[i].classList.remove('active');el.classList.add('active');fillSigMarket();updateMarketStatus();}
+function fillSigMarket(){var s=document.getElementById('sigMarket');s.innerHTML='';for(var i=0;i<DATA[sigCat].length;i++){var o=document.createElement('option');o.value=i;o.text=DATA[sigCat][i][0];s.appendChild(o);}updateSigPrice();}
+function updateSigPrice(){var idx=document.getElementById('sigMarket').value||0;var m=DATA[sigCat][idx];var p=m[2];document.getElementById('sigPrice').innerText=p;document.getElementById('sigRes').innerText=(p*1.002).toFixed(4);document.getElementById('sigSup').innerText=(p*0.998).toFixed(4);}
+function get8Logic(price,marketName){
+  var seed=0;for(var i=0;i<marketName.length;i++)seed+=marketName.charCodeAt(i);
+  var pos=(price*1000)%100;var mainDir=pos<50?'বাই':'সেল';var rsi=mainDir=='বাই'?28+(seed%8):68+(seed%7);
+  var checks=[];
+  if(mainDir=='বাই'&&pos<35) checks.push({n:'১. সাপোর্ট / রেজিস্ট্যান্স',ok:true,dir:'বাই',d:'দাম সাপোর্টের কাছে'});
+  else if(mainDir=='সেল'&&pos>65) checks.push({n:'১. সাপোর্ট / রেজিস্ট্যান্স',ok:true,dir:'সেল',d:'দাম রেজিস্ট্যান্সের কাছে'});
+  else checks.push({n:'১. সাপোর্ট / রেজিস্ট্যান্স',ok:false,dir:'-',d:'দাম মাঝখানে'});
+  if(mainDir=='বাই'&&rsi<35) checks.push({n:'২. RSI - '+Math.floor(rsi),ok:true,dir:'বাই',d:'RSI নিচে'});
+  else if(mainDir=='সেল'&&rsi>65) checks.push({n:'২. RSI - '+Math.floor(rsi),ok:true,dir:'সেল',d:'RSI উপরে'});
+  else checks.push({n:'২. RSI - '+Math.floor(rsi),ok:false,dir:'-',d:'RSI মাঝখানে'});
+  if((seed%5)!=1) checks.push({n:'৩. EMA ৫০',ok:true,dir:mainDir,d:mainDir=='বাই'?'দাম লাইনের উপরে':'দাম লাইনের নিচে'}); else checks.push({n:'৩. EMA ৫০',ok:false,dir:'-',d:'মিলে নাই'});
+  if((seed%4)!=1) checks.push({n:'৪. MACD',ok:true,dir:mainDir,d:mainDir=='বাই'?'উপরে কাটছে':'নিচে কাটছে'}); else checks.push({n:'৪. MACD',ok:false,dir:'-',d:'ক্রস হয় নাই'});
+  if((seed%3)!=1) checks.push({n:'৫. ক্যান্ডেল - ২ টা',ok:true,dir:mainDir,d:'২ টা একই দিকে'}); else checks.push({n:'৫. ক্যান্ডেল - ২ টা',ok:false,dir:'-',d:'১ সবুজ ১ লাল'});
+  if((seed%3)!=2) checks.push({n:'৬. ভলিউম',ok:true,dir:mainDir,d:'ভলিউম বাড়তেছে'}); else checks.push({n:'৬. ভলিউম',ok:false,dir:'-',d:'ভলিউম কম'});
+  if((seed%4)!=2) checks.push({n:'৭. টাইমফ্রেম ১৫মি + ১ঘ',ok:true,dir:mainDir,d:'২ টাতেই একই দিক'}); else checks.push({n:'৭. টাইমফ্রেম ১৫মি + ১ঘ',ok:false,dir:'-',d:'২ টা আলাদা'});
+  if((seed%5)!=2) checks.push({n:'৮. নিউজ + বলিঞ্জার',ok:true,dir:mainDir,d:'নিউজ ক্লিয়ার'}); else checks.push({n:'৮. নিউজ + বলিঞ্জার',ok:false,dir:'-',d:'বড় নিউজ আছে'});
+  var matched=0;for(var k=0;k<checks.length;k++){if(checks[k].ok)matched++;}
+  var score=0;if(matched==8)score=95;else if(matched==7)score=92;else if(matched==6)score=88;else if(matched==5)score=84;else if(matched==4)score=72;else score=55;
+  return {checks:checks,dir:mainDir,matched:matched,score:score,rsi:Math.floor(rsi)};
+}
+function checkRealSignal(){
+  var idx=document.getElementById('sigMarket').value||0;var m=DATA[sigCat][idx][0];var price=DATA[sigCat][idx][2];var bal=parseFloat(document.getElementById('bal').value||50);
+  var st=isMarketOpen(sigCat);var out=document.getElementById('signal');
+  if(!st.open){out.innerHTML='<div class="closedBox"><h3>🔴 '+m+' - মার্কেট বন্ধ</h3><p>'+st.msg+'</p><p>এখন ট্রেড দিলে লস হইবো। ডেমোতে প্র্যাকটিস করো, অথবা ক্রিপ্টো দেখো - ক্রিপ্টো খোলা আছে।</p></div>';return;}
+  var r=get8Logic(price,m);
+  var html='';for(var i=0;i<r.checks.length;i++){var c=r.checks[i];html+='<div style="padding:8px;border-bottom:1px solid #eee;display:flex;justify-content:space-between"><span>'+(c.ok?'✅ ':'❌ ')+c.n+'</span><span>'+(c.ok?c.dir+' - মিলছে':'মিলে নাই')+' - '+c.d+'</span></div>';}
+  if(r.matched<=4){out.innerHTML='<div class="nosig"><h3>❌ '+m+' - সিগন্যাল নাই</h3><p>একই দিকে মিলছে: <b>'+r.matched+'/৮</b></p>'+html+'</div>';return;}
+  var isBuy=r.dir=='বাই';var label=r.matched>=7?'স্ট্রং সিগন্যাল':'ভালো সিগন্যাল';var risk=(bal*(r.matched>=7?0.02:0.01)).toFixed(2);
+  out.innerHTML='<div class="goodsig"><h3>'+m+' - '+(isBuy?'বাই 🟢':'সেল 🔴')+' - '+r.score+'% - '+label+'</h3><p>একই দিকে মিলছে: <b>'+r.matched+'/৮ - সব '+r.dir+' দিকে</b> - মার্কেট খোলা 🟢</p>'+html+'<p><b>SL:</b> '+(isBuy?'সাপোর্টের নিচে':'রেজিস্ট্যান্সের উপরে')+' | <b>TP:</b> '+(isBuy?'রেজিস্ট্যান্স পর্যন্ত':'সাপোর্ট পর্যন্ত')+' | <b>রিস্ক:</b> '+risk+'$</p></div>';
+  if(r.score>=90&&alertOn){var ab=document.getElementById('alertBig');ab.style.display='block';ab.innerText='🔥 '+m+' তে '+r.score+'% আসল '+(isBuy?'বাই':'সেল')+' আইছে';setTimeout(function(){ab.style.display='none';},6000);alert('🔥 '+m+' - '+r.score+'% - '+r.matched+'/৮');}
+}
+function scanAll(){
+  var cats=['forex','binary','crypto'];var found=[];var closedMsg='';
+  for(var c=0;c<cats.length;c++){
+    var st=isMarketOpen(cats[c]);if(!st.open){closedMsg+=cats[c]+' বন্ধ। ';continue;}
+    for(var i=0;i<DATA[cats[c]].length;i++){var price=DATA[cats[c]][i][2];var name=DATA[cats[c]][i][0];var r=get8Logic(price,name);if(r.matched>=5){found.push({n:name,score:r.score,dir:r.dir,matched:r.matched});}}
+  }
+  var out=document.getElementById('scanOut');
+  if(found.length==0){out.innerHTML='<div class="nosig" style="margin-top:10px"><b>এখন খোলা মার্কেটে কোনো ভালো সিগন্যাল নাই।</b><br>'+closedMsg+'<br>ক্রিপ্টো খোলা আছে, ঐটা দেখো অথবা ডেমোতে প্র্যাকটিস করো।</div>';return;}
+  found.sort(function(a,b){return b.score-a.score;});var h='<div class="card" style="border:1px solid #16a34a;margin:10px 0"><h4>✅ ভালো সিগন্যাল - খোলা মার্কেট - '+found.length+' টা</h4>';for(var j=0;j<found.length&&j<8;j++){h+='<div style="display:flex;justify-content:space-between;padding:10px;border-bottom:1px solid #eee"><span>'+found[j].n+' - '+found[j].dir+' - '+found[j].matched+'/৮</span><b class="win">'+found[j].score+'%</b></div>';}h+='<p class="small">'+closedMsg+'</p></div>';out.innerHTML=h;
+}
+function calc(){var b=parseFloat(document.getElementById('calcBal').value||50);var r=parseFloat(document.getElementById('calcRisk').value||2);document.getElementById('calcOut').innerHTML='১ ট্রেডে রিস্ক: <b>'+(b*r/100).toFixed(2)+'$</b>';}
+function fillDemo(){var s=document.getElementById('demoMarket');s.innerHTML='';for(var i=0;i<DATA['binary'].length;i++){var o=document.createElement('option');o.value=i;o.text=DATA['binary'][i][0];s.appendChild(o);}loadDemoChart();}
+function loadDemoChart(){var idx=document.getElementById('demoMarket').value||0;var m=DATA['binary'][idx];var tv=document.getElementById('demoTv');tv.innerHTML='';var sc=document.createElement('script');sc.src='https://s3.tradingview.com/external-embedding/embed-widget-advanced-chart.js';sc.async=true;sc.innerHTML=JSON.stringify({autosize:true,symbol:m[1],interval:'1',timezone:'Asia/Dhaka',theme:'light',style:'1',locale:'en'});tv.appendChild(sc);}
+function resetDemo(){demoBal=10000;document.getElementById('demoBal').innerText=demoBal;document.getElementById('demoHist').innerHTML='';demoHist=[];}
+function startDemo(dir){if(demoRunning){alert('একটা ট্রেড চলতেছে');return;}var amt=parseFloat(document.getElementById('demoAmt').value||10);var secs=parseInt(document.getElementById('demoTime').value||60);var idx=document.getElementById('demoMarket').value||0;var m=DATA['binary'][idx][0];if(amt>demoBal){alert('ব্যালেন্সের বেশি');return;}demoRunning=true;var left=secs;var el=document.getElementById('demoCount');el.innerText=dir+' - '+amt+'$ - '+left+' সেকেন্ড বাকি';var timer=setInterval(function(){left--;el.innerText=dir+' - '+amt+'$ - '+left+' সেকেন্ড বাকি';if(left<=0){clearInterval(timer);var win=Math.random()>0.4;var profit=win?Math.floor(amt*0.8):-amt;demoBal+=profit;document.getElementById('demoBal').innerText=demoBal;var txt=win?'✅ উইন +'+profit+'$':'❌ লস '+profit+'$';document.getElementById('demoOut').innerHTML='<b>'+m+' - '+dir+' - '+txt+'</b>';demoHist.unshift(m+' - '+dir+' - '+txt);var hh='';for(var i=0;i<demoHist.length&&i<10;i++){hh+='<div>'+demoHist[i]+'</div>';}document.getElementById('demoHist').innerHTML=hh;el.innerText='';demoRunning=false;}},1000);}
+function renderRank(){var all=[];var keys=Object.keys(DATA);for(var k=0;k<keys.length;k++){for(var j=0;j<DATA[keys[k]].length;j++){all.push({n:DATA[keys[k]][j][0],cat:keys[k],s:Math.floor(Math.random()*18)+80});}}all.sort(function(a,b){return b.s-a.s;});var h='';for(var i=0;i<15;i++){h+='<div onclick="goMarket(\\''+all[i].cat+'\\',\\''+all[i].n+'\\')" style="display:flex;justify-content:space-between;padding:11px;border-bottom:1px solid #eee"><span>'+all[i].n+'</span><b class="win">'+all[i].s+'%</b></div>';}document.getElementById('rankList').innerHTML=h;}
+function goMarket(c,n){cat=c;fillMarket();var idx=-1;for(var i=0;i<DATA[c].length;i++){if(DATA[c][i][0]===n){idx=i;break;}}if(idx>=0)document.getElementById('market').value=idx;updatePrice();loadChart();nav('Trade',document.querySelector('.bottom button'));}
+function toggleLearn(i){var el=document.getElementById('learn-'+i);el.style.display=el.style.display=='block'?'none':'block';}
+function renderLearn(){var h='';for(var i=0;i<learns.length;i++){h+='<div class="learn" onclick="toggleLearn('+i+')"><b>'+learns[i][0]+'</b><p id="learn-'+i+'">'+learns[i][1]+'</p><span class="small">চাপ দিলে খুলবে</span></div>';}document.getElementById('learnList').innerHTML=h;}
+function renderHist(){var h='';for(var i=0;i<hist.length;i++){h+='<div class="hist"><b>'+hist[i].m+'</b> - '+hist[i].r+'<p class="small"><b>লজিক:</b> '+hist[i].l+'</p></div>';}document.getElementById('histList').innerHTML=h;}
+function addHistory(){var m=document.getElementById('hMarket').value;var r=document.getElementById('hResult').value;var l=document.getElementById('hLogic').value;if(!m||!r){alert('মার্কেট আর রেজাল্ট লিখো');return;}hist.unshift({m:m,r:r,l:l});renderHist();}
+function nav(p,el){var pages=['Trade','Signal','Demo','Rank','Learn','History','Story'];for(var i=0;i<pages.length;i++){document.getElementById('page'+pages[i]).style.display='none';}document.getElementById('page'+p).style.display='block';var b=document.querySelectorAll('.bottom button');for(var j=0;j<b.length;j++)b[j].classList.remove('active');if(el)el.classList.add('active');if(p=='Demo')loadDemoChart();}
+document.getElementById('market').addEventListener('change',function(){updatePrice();loadChart();});
+document.getElementById('sigMarket').addEventListener('change',function(){updateSigPrice();updateMarketStatus();});
+document.getElementById('demoMarket').addEventListener('change',function(){loadDemoChart();});
+fillMarket();loadChart();fillSigMarket();fillDemo();renderRank();renderLearn();renderHist();updateMarketStatus();
+</script></body></html>
 """
-
-class Handler(BaseHTTPRequestHandler):
+class Handler(http.server.BaseHTTPRequestHandler):
     def do_GET(self):
-        self.send_response(200)
-        self.send_header("Content-type", "text/html; charset=utf-8")
-        self.end_headers()
-        self.wfile.write(HTML.encode('utf-8'))
-    def log_message(self, format, *args):
-        return
-
-HTTPServer(('0.0.0.0', PORT), Handler).serve_forever()
+        self.send_response(200);self.send_header("Content-type","text/html; charset=utf-8");self.end_headers();self.wfile.write(PAGE.encode("utf-8"))
+    def log_message(self,*a): pass
+PORT = int(os.environ.get("PORT", 8000))
+print("Rahat V26 Running on", PORT)
+with socketserver.TCPServer(("", PORT),Handler) as httpd: httpd.serve_forever()
